@@ -29,7 +29,7 @@ namespace GithubContributions
 
             var client = new GitHubClient(information);
 
-            var searchTerm = string.Format("is:merged is:pr author:{0}", args[0]);
+            var searchTerm = string.Format("is:pr author:{0}", args[0]);
 
             var pullRequests = await FetchPullRequests(client.Search, searchTerm);
 
