@@ -34,8 +34,9 @@ namespace GithubContributions
             var pullRequests = await FetchPullRequests(client.Search, searchTerm);
 
             var lookup = pullRequests
-                .ToLookup(GetRepositoryName)
-                .OrderByDescending(x => x.Count());
+                .GroupBy(GetRepositoryName)
+                .OrderByDescending(x => x.Count())
+                .ThenBy(x => x.Key);
 
             WriteResults(lookup);
 
