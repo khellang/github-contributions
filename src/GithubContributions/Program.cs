@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Octokit;
+using Octokit.Internal;
 
 namespace GithubContributions
 {
@@ -12,29 +13,24 @@ namespace GithubContributions
         private static readonly Regex RepoNameRegex = new Regex(
             @"^https://api\.github\.com/repos/(?<repo>[a-zA-Z0-9.-]+/[a-zA-Z0-9.-]+)/issues/\d+$");
 
-        public static int Main(string[] args)
-        {
-            return MainAsync(args).Result;
-        }
-
-        private static async Task<int> MainAsync(string[] args)
+        public static async Task<int> Main(string[] args)
         {
             if (args.Length < 1)
             {
-                Console.WriteLine("Usage: github-contributions <author>");
+                Console.WriteLine("Usage: github-contributions <author> [token]");
                 return 1;
             }
 
-            var information = new ProductHeaderValue("github-contributions");
+            var client = CreateGitHubClient(args);
 
-            var client = new GitHubClient(information);
-
-            var searchTerm = string.Format("is:pr author:{0}", args[0]);
+            var author = args[0];
+            var searchTerm = $"is:pr author:{author}";
 
             var pullRequests = await FetchPullRequests(client.Search, searchTerm);
 
             var lookup = pullRequests
                 .GroupBy(GetRepositoryName)
+                .Where(x => !x.Key.StartsWith(author))
                 .OrderByDescending(x => x.Count())
                 .ThenBy(x => x.Key);
 
@@ -45,14 +41,14 @@ namespace GithubContributions
 
         private static void WriteResults(IOrderedEnumerable<IGrouping<string, Issue>> lookup)
         {
-            Console.WriteLine("Number of repositories: {0}", lookup.Count());
-            Console.WriteLine("Number of pull requests: {0}", lookup.Sum(x => x.Count()));
+            Console.WriteLine($"Number of repositories: {lookup.Count()}");
+            Console.WriteLine($"Number of pull requests: {lookup.Sum(x => x.Count())}");
 
             Console.WriteLine();
 
             foreach (var group in lookup)
             {
-                Console.WriteLine("{0}: {1}", @group.Key, @group.Count());
+                Console.WriteLine($"{group.Key}: {group.Count()}");
             }
         }
 
@@ -60,18 +56,24 @@ namespace GithubContributions
         {
             var pullRequests = new List<Issue>();
 
-            var page = 1;
+            var request = new SearchIssuesRequest(searchTerm) { Page = 1 };
 
-            SearchIssuesResult result;
+            var result = await client.SearchIssues(request);
 
-            do
+            pullRequests.AddRange(result.Items);
+
+            var page = 2;
+
+            while (pullRequests.Count < result.TotalCount)
             {
-                var request = new SearchIssuesRequest(searchTerm) { Page = page++ };
+                request = new SearchIssuesRequest(searchTerm) { Page = page };
 
                 result = await client.SearchIssues(request);
 
                 pullRequests.AddRange(result.Items);
-            } while (pullRequests.Count < result.TotalCount);
+
+                page++;
+            }
 
             return pullRequests;
         }
@@ -79,6 +81,22 @@ namespace GithubContributions
         private static string GetRepositoryName(Issue issue)
         {
             return RepoNameRegex.Match(issue.Url.ToString()).Groups["repo"].Value;
+        }
+
+        private static IGitHubClient CreateGitHubClient(IReadOnlyList<string> args)
+        {
+            var information = new ProductHeaderValue("github-contributions");
+
+            if (args.Count <= 1)
+            {
+                return new GitHubClient(information);
+            }
+
+            var credentials = new Credentials(args[1]);
+
+            var store = new InMemoryCredentialStore(credentials);
+
+            return new GitHubClient(information, store);
         }
     }
 }
