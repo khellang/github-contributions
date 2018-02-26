@@ -2,4 +2,4 @@
 
 ## Usage
 
-> github-contributions <author> [token]
+> github-contributions \<author> \[token]
