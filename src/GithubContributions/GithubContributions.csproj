@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <LangVersion>Latest</LangVersion>
     <TargetFramework>netcoreapp2.0</TargetFramework>
+    <AssemblyName>github-contributions</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
